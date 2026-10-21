@@ -10,33 +10,26 @@ pub fn build(b: *std.Build) void {
     });
     // const optimize = b.standardOptimizeOption(.{});
 
-    const obj = b.addObject(.{
-        .name = "blinky.o",
+    // try to use zig single compilation unit
+    const exe = b.addExecutable(.{
+        .name = "blinky.elf",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = .ReleaseSmall,
         }),
     });
-    const build_obj = obj.getEmittedBin();
-    const assembly = obj.getEmittedAsm();
+    exe.bundle_compiler_rt = false;
+    exe.setLinkerScript(b.path("src/linker_simple.ld"));
+
+    // Install in at bin/blinky.elf
+    b.installArtifact(exe);
+
+    const assembly = exe.getEmittedAsm();
 
     // Install Assembly
     const install_asm = b.addInstallFile(assembly, "firmware/blinky.S");
     b.getInstallStep().dependOn(&install_asm.step);
-
-    // avr-ld.exe -o blinky.elf -T linker.ld .\main.o
-    const link_command = b.addSystemCommand(&.{
-        "avr-ld.exe",
-        "--verbose",
-        "-o",
-    });
-    // The returned path is tracked as a build output.
-    const elf_file = link_command.addOutputFileArg("blinky.elf");
-    link_command.addFileArg(build_obj);
-
-    const install_elf = b.addInstallFile(elf_file, "firmware/blinky.elf");
-    b.getInstallStep().dependOn(&install_elf.step);
 
     // avr-objcopy -j .text -j .data -O ihex blinky.elf blinky.hex
     const strip_command = b.addSystemCommand(&.{
@@ -48,7 +41,7 @@ pub fn build(b: *std.Build) void {
         "-O",
         "ihex",
     });
-    strip_command.addFileArg(elf_file);
+    strip_command.addFileArg(exe.getEmittedBin());
     const binary = strip_command.addOutputFileArg("blinky.hex");
 
     const install_hex = b.addInstallFile(binary, "firmware/blinky.hex");

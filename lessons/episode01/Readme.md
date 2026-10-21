@@ -1,5 +1,7 @@
 Use the zig compiler to build the object file `main.o`.
 
+zig build-exe -Osmall -target avr-freestanding -mcpu atmega328p "-Mroot=src\\blinkyInterrupt.zig"  --name main.elf -fno-compiler-rt --script "src\\linker_simple.ld"
+
 Fundamental step of building an executable:
 * Compilation
 The command `zig build-obj` compiles zig source code into an object file.
