@@ -36,8 +36,9 @@ pub fn generate_vector_table_empty(comptime jump_insn: JumpInstruction) []const 
     for (int_names[1..]) |vec_name| {
         // find if vec name is in the root interrupt declaration
         if (@hasDecl(root.interrupts, vec_name)) {
+            // add the vector_name to the vector jmp table
             asm_str = asm_str ++ jump_insn.to_string() ++ " " ++ vec_name ++ "\n";
-            // export logic
+            // Get the declared handler function body and calling convention
             const handler = @field(root.interrupts, vec_name);
             const calling_conv = switch (@typeInfo(@TypeOf(handler))) {
                 .@"fn" => |info| info.attrs.@"callconv",
@@ -45,6 +46,8 @@ pub fn generate_vector_table_empty(comptime jump_insn: JumpInstruction) []const 
                     @compileError("Declarations in interrupts must be functions " ++ vec_name ++ "is not a function!");
                 },
             };
+            // based on the calling convention,
+            // wrap the function with avr interrupt function prelude and tail
             const exported_fn = switch (calling_conv) {
                 // wrap the naked function with a avr signal calling convention
                 .auto => struct {
@@ -53,8 +56,9 @@ pub fn generate_vector_table_empty(comptime jump_insn: JumpInstruction) []const 
                     }
                 }.wrapper,
                 .avr_interrupt, .avr_signal => handler,
-                else => @compileError("Just leave interrupt handlers with an unspecified calling convention"),
+                else => @compileError("Just leave interrupt handlers with .auto calling convention"),
             };
+            // export the symbol, so that it can be read by the program
             @export(&exported_fn, .{ .name = vec_name, .linkage = .strong });
         } else {
             asm_str = asm_str ++ jump_insn.to_string() ++ " _unhandled_vector\n";
